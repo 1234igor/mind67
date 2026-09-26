@@ -1,0 +1,51 @@
+[package]
+name = "mind67"
+version = "1.0.0"
+edition = "2021"
+description = "mind67 — a keyboard-driven mind map of text and lines, in Rust on GPUI"
+license = "MIT"
+publish = false
+repository = "https://github.com/1234igor/mind67"
+
+[[bin]]
+name = "mind67"
+path = "src/main.rs"
+
+[dependencies]
+gpui = { path = "vendor/gpui" }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json = "1"
+# Decoding and downscaling stored images (src/images.rs, src/image_bank.rs).
+# gpui already builds all three, so none of them adds a compile unit — and the
+# `image` version must stay the one gpui uses, since `RenderImage::new` takes
+# its `Frame` type.
+image = "0.25"
+sha2 = "0.10"
+futures = "0.3"
+# Grapheme and word boundaries. Hand-rolling these gets flags, Hangul and
+# regional indicators wrong; this is already in the tree via gpui.
+unicode-segmentation = "1"
+
+# The two places gpui 0.2.2 leaves no API and we talk to AppKit ourselves:
+# pinch-to-zoom (src/pinch.rs — NSEventTypeMagnify is never translated) and the
+# Help menu plus the traffic lights (src/mac.rs).
+[target.'cfg(target_os = "macos")'.dependencies]
+block2 = "0.6"
+objc2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSPathUtilities", "NSUserDefaults", "NSURL", "NSData", "NSString", "NSError", "NSArray"] }
+objc2-app-kit = { version = "0.3", features = [
+    "NSAlert", "NSApplication",
+    "NSButton",
+    "NSControl",
+    "NSEvent",
+    "NSMenu",
+    "NSMenuItem",
+    "NSGraphics",
+    "NSResponder",
+    "NSView",
+    "NSWindow",
+    "block2",
+    "objc2-core-foundation",
+] }
+
+[dev-dependencies]
