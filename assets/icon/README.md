@@ -1,14 +1,13 @@
 # App icon
 
-An electric-blue branching groove cut into a full-bleed ivory plate. The square
-master deliberately has no baked-in rounded corners; macOS decides how an app
-icon is presented.
+The master icon is a square image with an ivory background and blue branches.
+The artwork has no rounded corners; macOS controls the displayed icon shape.
 
 | File | Use |
 |------|-----|
 | `AppIcon-1024.png` | Master artwork |
 | `AppIcon.icns` | macOS Dock and Finder |
-| `AppIconDev-1024.png`, `AppIconDev.icns` | The same, wearing a DEV ribbon, for `./dev.sh` |
+| `AppIconDev-1024.png`, `AppIconDev.icns` | Development icons with a DEV ribbon, used by `./dev.sh` |
 
 Regenerate the `.icns` from the square master (from the repo root, needs Pillow):
 
