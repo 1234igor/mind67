@@ -1,8 +1,8 @@
 # mind67
 
-mind67 is a macOS mind-mapping app built in Rust with [GPUI](https://gpui.rs).
-Create and rearrange branches with the keyboard, add text or images, and save
-maps as local JSON files.
+A macOS mind-mapping app built in Rust with [GPUI](https://gpui.rs). Create
+branches with the keyboard, arrange them on the canvas, and add text or images.
+Maps save as local JSON files.
 
 ![mind67 canvas](screenshot.png)
 
@@ -63,8 +63,8 @@ Right-click a node, edge, or empty canvas for its available commands.
 
 ## Files and saving
 
-The app autosaves about 700 ms after a change and saves again on quit. It reopens
-the last document at launch. The first map is stored at:
+Maps save automatically. When you reopen the app, it returns to your last
+document. The first map is stored at:
 
 ```text
 ~/Library/Application Support/jotmind/map.json
@@ -76,31 +76,20 @@ Image files are separate from map JSON; copying a JSON file alone does not
 include its pictures.
 
 Use **File → Open** to switch documents and **Save As** to choose a file location.
-For a development launch, `JOTMIND_FILE` can override the startup document path.
-
-Saves replace the previous file atomically. If an existing document cannot be
-loaded, the app opens a temporary session and reports the error instead of
-replacing it with a new map.
-
 See the [privacy policy](PRIVACY.md) for data handling.
 
-## Limitations
+## Import and export
 
-- Each node has one parent; cross-links between branches are not supported.
-- Exports omit image content.
-- Markdown and OPML round trips can change sibling order because ordering is
-  derived from node positions.
+Use the File menu to import Markdown or OPML, or export to Markdown, OPML, a
+text outline, or SVG. Exports include text and structure; images are omitted.
+Importing an exported outline can change the order of sibling nodes.
+
+Maps use a tree structure: each node has one parent, with no cross-links between
+branches.
 
 ## Development
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development builds and checks.
-The main modules are `graph` (map structure and editing), `camera` (navigation),
-`store` (documents), `paint` (rendering), and `ui` (controls and interaction).
-
-Set `MIND_MAP_DEBUG=1` when launching the binary to display paint and build
-timings, path counts, and visible-node counts. These are rendering diagnostics;
-they do not measure total input latency. Results depend on the map, zoom level,
-hardware, and build.
 
 ## License
 
