@@ -12,7 +12,7 @@ name = "mind67"
 path = "src/main.rs"
 
 [dependencies]
-gpui = { path = "vendor/gpui" }
+gpui = "=0.2.2"
 serde = { version = "1", features = ["derive", "rc"] }
 serde_json = "1"
 # Decoding and downscaling stored images (src/images.rs, src/image_bank.rs).

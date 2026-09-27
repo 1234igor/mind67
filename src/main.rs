@@ -707,8 +707,6 @@ fn main() {
             .open_window(
                 WindowOptions {
                     window_bounds: Some(WindowBounds::Windowed(bounds)),
-                    // Let macOS clip the window once. An opaque canvas avoids
-                    // the extra glass rim and keeps both palettes predictable.
                     window_background: WindowBackgroundAppearance::Opaque,
                     titlebar: Some(gpui::TitlebarOptions {
                         title: Some(dev::app_title().into()),
