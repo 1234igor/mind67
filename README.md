@@ -4,11 +4,9 @@ A macOS mind-mapping app built in Rust with [GPUI](https://gpui.rs). Create
 branches with the keyboard, arrange them on the canvas, and add text or images.
 Maps save as local JSON files.
 
-![mind67 canvas](screenshot.png)
-
 ## Features
 
-- A zoomable canvas with automatic layout, branch folding, and a minimap.
+- A zoomable canvas with a layout command, branch folding, and a minimap.
 - Text labels with line breaks, image nodes, edge labels, and node colors.
 - Keyboard editing, multiple-node selection, drag selection, and undo/redo.
 - Find and replace, plus a shortcut panel with customizable commands.
@@ -64,11 +62,13 @@ Right-click a node, edge, or empty canvas for its available commands.
 ## Files and saving
 
 Maps save automatically. When you reopen the app, it returns to your last
-document. The first map is stored at:
+document. Builds made with `run.sh` store the first map at:
 
 ```text
 ~/Library/Application Support/jotmind/map.json
 ```
+
+Sandboxed builds store this directory inside the app container.
 
 The `jotmind` directory name is retained from an earlier app name. It also holds
 recent-document settings, shortcut overrides, and the shared `images/` store.
