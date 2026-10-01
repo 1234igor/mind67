@@ -34,7 +34,7 @@ block2 = "0.6"
 objc2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSPathUtilities", "NSUserDefaults", "NSURL", "NSData", "NSString", "NSError", "NSArray"] }
 objc2-app-kit = { version = "0.3", features = [
-    "NSAlert", "NSApplication",
+    "NSAlert", "NSOpenPanel", "NSSavePanel", "NSApplication",
     "NSButton",
     "NSControl",
     "NSEvent",

@@ -963,7 +963,7 @@ impl MindMapView {
             .path
             .as_ref()
             .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-            .or_else(store::home_path)
+            .or_else(store::document_dir)
             .unwrap_or_else(|| std::path::PathBuf::from("."));
         let suggested = self
             .path
@@ -1121,11 +1121,15 @@ impl MindMapView {
         window.toggle_fullscreen();
     }
 
-    fn on_close_window(&mut self, _: &CloseWindow, window: &mut Window, _: &mut Context<Self>) {
-        // Flush first: the app-quit hook that normally lands the last write does
-        // not fire when a single window is closed rather than the app quit.
-        self.save_on_quit();
-        window.remove_window();
+    pub fn flush_before_close(&mut self) -> bool {
+        if self.dirty_since.is_some() && !self.write_to_disk() { return false; }
+        self.dirty_since = None;
+        true
+    }
+
+    fn on_close_window(&mut self, _: &CloseWindow, _: &mut Window, cx: &mut Context<Self>) {
+        if self.flush_before_close() { cx.hide(); }
+        cx.notify();
     }
 
     // ---- import / export ------------------------------------------------
@@ -1137,7 +1141,7 @@ impl MindMapView {
             .path
             .as_ref()
             .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-            .or_else(store::home_path)
+            .or_else(store::document_dir)
             .unwrap_or_else(|| std::path::PathBuf::from("."));
         let picked = cx.prompt_for_new_path(&dir, Some(&suggested));
         cx.spawn(async move |this, cx| {

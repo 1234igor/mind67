@@ -65,9 +65,8 @@ impl Doc {
     }
 }
 
-/// Where this app keeps the maps it made itself, its recents list and its
-/// keymap. Everything persisted hangs off this one directory, which is why the
-/// development build can be kept away from real maps by changing one string.
+/// Private preferences, bookmarks, and the location of legacy maps. Current
+/// documents and images live in the folder chosen by the user.
 fn data_dir() -> Option<PathBuf> {
     let mut p = crate::sandbox::home();
     if cfg!(target_os = "macos") {
@@ -85,37 +84,73 @@ fn data_dir() -> Option<PathBuf> {
     Some(p)
 }
 
-/// The directory the image store sits in — one store for the app, not one per
-/// document. Documents are app-managed and can be switched at any time, and the
-/// store is content-addressed, so a picture pasted into one map resolves in
-/// every other. (`images::path` appends the store's own subdirectory.)
-pub fn images_root() -> PathBuf {
-    data_dir().unwrap_or_else(|| PathBuf::from("."))
+/// Documents and images belong in the folder the user picked. Only settings,
+/// bookmarks and recents remain in Application Support.
+pub fn document_dir() -> Option<PathBuf> {
+    let raw = fs::read(data_dir()?.join("document-folder.json")).ok()?;
+    let folder: PathBuf = serde_json::from_slice(&raw).ok()?;
+    (!crate::sandbox::private_document_location(&folder)).then(|| crate::sandbox::restore(&folder))
 }
 
-/// The map you get when you have never opened anything else.
-pub fn home_path() -> Option<PathBuf> {
-    data_dir().map(|mut p| {
-        p.push("map.json");
-        p
-    })
+pub fn ensure_document_folder() -> bool {
+    // An explicit scratch-file path is used by the smoke/benchmark tooling.
+    if std::env::var_os("JOTMIND_FILE").is_some() { return true; }
+    if document_dir().is_some_and(|folder| folder.is_dir()) { return true; }
+    loop {
+        let Some(folder) = crate::sandbox::choose_document_folder(
+            "Choose a folder for your mind maps and images. New maps save here automatically. Existing maps will be copied here; the originals will stay safe.") else { return false; };
+        let result = (|| -> io::Result<()> {
+            crate::sandbox::check_document_folder(&folder)?;
+            let legacy = data_dir().ok_or_else(|| io::Error::other("No settings folder"))?;
+            let migrated = migrate_documents(&legacy, &folder)?;
+            crate::sandbox::remember(&folder).map_err(io::Error::other)?;
+            fs::create_dir_all(&legacy)?;
+            let location = legacy.join("document-folder.json");
+            let temp = location.with_extension("tmp");
+            fs::write(&temp, serde_json::to_vec(&folder)?)?;
+            fs::rename(temp, location)?;
+            // Keep startup/Open Recent pointing at the accessible copies.
+            let list = recents().into_iter().map(|path|
+                migrated.iter().find(|(old, _)| old == &path).map(|(_, new)| new.clone()).unwrap_or(path)
+            ).collect::<Vec<_>>();
+            fs::write(legacy.join("recent.json"), serde_json::to_vec(&list)?)?;
+            Ok(())
+        })();
+        match result { Ok(()) => return true, Err(error) => crate::sandbox::location_error(&error.to_string()) }
+    }
 }
 
-/// An unused path in the data dir for File ▸ New: `untitled.json`, then
-/// `untitled-2.json`, and so on — so a new map never lands on top of one that
-/// is already there. `None` only when there is no home directory to write to.
-pub fn new_document_path() -> Option<PathBuf> {
-    let dir = data_dir()?;
-    for n in 1..10_000 {
-        let name = if n == 1 {
-            "untitled.json".to_string()
-        } else {
-            format!("untitled-{n}.json")
-        };
-        let candidate = dir.join(name);
-        if !candidate.exists() {
-            return Some(candidate);
+fn migrate_documents(legacy: &Path, folder: &Path) -> io::Result<Vec<(PathBuf, PathBuf)>> {
+    let mut migrated = Vec::new();
+    if legacy.is_dir() {
+        for entry in fs::read_dir(legacy)? {
+            let path = entry?.path();
+            // Settings/recents/keymaps are JSON too, but are not documents.
+            if path.is_file() && path.extension().is_some_and(|ext| ext == "json") && (load_from(&path).is_ok() || path.file_name().is_some_and(|n| n == "map.json" || n.to_string_lossy().starts_with("untitled"))) {
+                let target = folder.join(path.file_name().unwrap());
+                crate::sandbox::copy_preserving(&path, &target)?;
+                migrated.push((path, target));
+            }
         }
+        crate::sandbox::copy_preserving(&legacy.join("images"), &folder.join("images"))?;
+    }
+    Ok(migrated)
+}
+
+pub fn images_root() -> PathBuf {
+    document_dir().or_else(|| std::env::var_os("JOTMIND_FILE").map(PathBuf::from).and_then(|p| p.parent().map(Path::to_path_buf)))
+        // Scratch/demo sessions never write a map; their image cache is isolated.
+        .unwrap_or_else(|| data_dir().unwrap_or_else(std::env::temp_dir))
+}
+
+pub fn home_path() -> Option<PathBuf> { document_dir().map(|p| p.join("map.json")) }
+
+pub fn new_document_path() -> Option<PathBuf> {
+    let dir = document_dir()?;
+    for n in 1..10_000 {
+        let name = if n == 1 { "untitled.json".to_string() } else { format!("untitled-{n}.json") };
+        let candidate = dir.join(name);
+        if !candidate.exists() { return Some(candidate); }
     }
     None
 }
@@ -129,7 +164,7 @@ pub fn startup_path() -> Option<PathBuf> {
     }
     recents()
         .into_iter()
-        .find(|p| p.is_file())
+        .find(|p| p.is_file() && !crate::sandbox::private_document_location(p))
         .or_else(home_path)
 }
 
@@ -547,5 +582,29 @@ mod tests {
         assert_eq!(e.from, back.graph.root_id);
         assert_eq!(back.graph.nodes[&e.to].parent, Some(back.graph.root_id));
         let _ = fs::remove_file(&path);
+    }
+}
+
+#[cfg(test)]
+mod document_migration_tests {
+    use super::*;
+    #[test]
+    fn maps_and_images_move_out_but_preferences_do_not() {
+        let base = std::env::temp_dir().join(format!("mind67-docs-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        let old = base.join("private"); let chosen = base.join("Documents");
+        fs::create_dir_all(old.join("images")).unwrap(); fs::create_dir_all(&chosen).unwrap();
+        save_to(&old.join("map.json"), &Doc::new(Graph::new("Keep this idea"), None, false, None)).unwrap();
+        fs::write(old.join("untitled-2.json"), "broken but recoverable").unwrap();
+        fs::write(old.join("keymap.json"), "{}").unwrap();
+        fs::write(old.join("recent.json"), "[]").unwrap();
+        fs::write(old.join("images/photo.png"), "image bytes").unwrap();
+        let moved = migrate_documents(&old, &chosen).unwrap();
+        assert_eq!(moved.len(), 2);
+        assert_eq!(load_from(&chosen.join("map.json")).unwrap().graph.focused().text, "Keep this idea");
+        assert_eq!(fs::read_to_string(chosen.join("untitled-2.json")).unwrap(), "broken but recoverable");
+        assert!(chosen.join("images/photo.png").exists()); assert!(old.join("map.json").exists());
+        assert!(!chosen.join("keymap.json").exists()); assert!(!chosen.join("recent.json").exists());
+        fs::remove_dir_all(base).unwrap();
     }
 }

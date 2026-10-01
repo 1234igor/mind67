@@ -165,6 +165,7 @@ actions!(
         ZoomWindow,
         ToggleFullScreen,
         CloseWindow,
+        ShowMainWindow,
         /// The only row an empty Open Recent submenu can hold. Nothing listens
         /// for it — a menu cannot hold a row that is merely greyed out.
         NoRecents,
@@ -590,6 +591,8 @@ pub fn set_menus(cx: &mut App) {
         Menu {
             name: "Window".into(),
             items: vec![
+                MenuItem::action("Show Main Window", ShowMainWindow),
+                MenuItem::separator(),
                 MenuItem::action("Minimize", MinimizeWindow),
                 MenuItem::action("Zoom", ZoomWindow),
                 MenuItem::separator(),
@@ -673,7 +676,11 @@ fn main() {
     let demo = has("--demo") || smoke;
     let empty = has("--empty");
 
-    Application::new().run(move |cx: &mut App| {
+    let application = Application::new();
+    application.on_reopen(|cx| { cx.dispatch_action(&ShowMainWindow); });
+    application.run(move |cx: &mut App| {
+        cx.activate(true);
+        if !demo && !empty && !store::ensure_document_folder() { cx.quit(); return; }
         load_code_font(cx);
         apply_keymap(cx, &store::load_keymap());
         pinch::install();
@@ -724,17 +731,32 @@ fn main() {
                     ..Default::default()
                 },
                 move |window, cx| {
-                    cx.new(|cx| {
+                    let view = cx.new(|cx| {
                         let mut view = MindMapView::new(graph, pose, theme, path, cx);
                         if let Some(msg) = warning {
                             view.open_read_only(msg);
                         }
                         view.focus(window, cx);
                         view
-                    })
+                    });
+                    let closing = view.clone();
+                    window.on_window_should_close(cx, move |_, cx| {
+                        let saved = closing.update(cx, |view, _| view.flush_before_close());
+                        if saved { cx.hide(); }
+                        false
+                    });
+                    view
                 },
             )
             .unwrap();
+
+        cx.on_action(move |_: &ShowMainWindow, cx| {
+            cx.activate(true);
+            let _ = window.update(cx, |view, window, cx| {
+                window.activate_window();
+                view.focus(window, cx);
+            });
+        });
 
         // The debounced autosave can't run after the event loop stops — flush.
         cx.on_app_quit(move |cx: &mut App| {

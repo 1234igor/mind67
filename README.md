@@ -61,19 +61,17 @@ Right-click a node, edge, or empty canvas for its available commands.
 
 ## Files and saving
 
-Maps save automatically. When you reopen the app, it returns to your last
-document. Builds made with `run.sh` store the first map at:
+On first launch, choose a folder for your maps. Maps save automatically as JSON
+files in that folder, alongside the shared `images/` directory. When you reopen
+the app, it returns to your last document. Keep the images directory with your
+maps when moving them between computers.
 
-```text
-~/Library/Application Support/jotmind/map.json
-```
+Older maps and images in Application Support are copied into the chosen folder
+without deleting the originals or replacing different files. Preferences,
+recent-document settings and bookmarks remain in Application Support.
 
-Sandboxed builds store this directory inside the app container.
-
-The `jotmind` directory name is retained from an earlier app name. It also holds
-recent-document settings, shortcut overrides, and the shared `images/` store.
-Image files are separate from map JSON; copying a JSON file alone does not
-include its pictures.
+Closing the window keeps the app running. **Window → Show Main Window** or
+clicking the Dock icon brings it back with your current map intact.
 
 Use **File → Open** to switch documents and **Save As** to choose a file location.
 See the [privacy policy](PRIVACY.md) for data handling.
